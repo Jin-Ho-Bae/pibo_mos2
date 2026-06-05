@@ -1,0 +1,63 @@
+# LAMMPS ReaxFF input template (cement-notebook conventions, H/Mo/S system).
+#
+# This template documents the input script that
+# pibo_reaxff.lammps_runner._write_input_script generates per evaluation.
+# The runner emits the script inline (not by reading this file) so that
+# it can render `pair_style reaxff` vs `reax/c` at run time based on
+# `detect_reaxff_style()`. The placeholders below are illustrative.
+#
+# Placeholders:
+#   {{REAX_STYLE}}    — "reaxff" (modern build) or "reax/c" (legacy build)
+#   {{QEQ_STYLE}}     — matching qeq fix style
+#   {{DATA_FILE}}     — path/basename of the LAMMPS atomic-positions data file
+#   {{FFIELD}}        — path/basename of the rendered ffield (van Duin format)
+#   {{ELEMENTS}}      — element ordering matching the data file's atom types
+#   {{LMP_CONTROL}}   — lmp_control file (cutoffs for ReaxFF tabulation/H-bond/3-body)
+
+units           real
+atom_style      charge
+boundary        p p p
+
+read_data       {{DATA_FILE}}
+
+# Cement Cell 4.3 ReaxFF setup: pair_style with companion lmp_control file
+# (cutoffs match Manuscript MD parameterization), QEq tolerance 1e-6 per
+# Manuscript "Computational Methods" section.
+pair_style      {{REAX_STYLE}} {{LMP_CONTROL}} safezone 2.4 mincap 200
+pair_coeff      * * {{FFIELD}} {{ELEMENTS}}
+
+fix             qeq all {{QEQ_STYLE}} 1 0.0 10.0 1.0e-6 reaxff
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+
+thermo          1
+thermo_style    custom step pe press vol lx ly lz xy xz yz
+
+# Single-point energy + lattice diagnostics
+run             0
+
+# kcal/mol → eV (1 kcal/mol = 0.0433641 eV); per-atom energy for the loss
+variable        natoms equal count(all)
+variable        pe_ev equal pe*0.0433641
+variable        epa_ev equal v_pe_ev/v_natoms
+
+# Lattice vectors (a, b, c) including triclinic tilt
+variable        my_lx equal lx
+variable        my_ly equal ly
+variable        my_lz equal lz
+variable        my_xy equal xy
+variable        my_xz equal xz
+variable        my_yz equal yz
+variable        lat_a equal v_my_lx
+variable        lat_b equal sqrt(v_my_ly*v_my_ly+v_my_xy*v_my_xy)
+variable        lat_c equal sqrt(v_my_lz*v_my_lz+v_my_xz*v_my_xz+v_my_yz*v_my_yz)
+
+# Sentinel lines parsed by pibo_reaxff.lammps_runner.parse_lammps
+print           "FINAL_EPA_EV ${epa_ev}"
+print           "FINAL_PRESS $(press)"
+print           "FINAL_LAT_A ${lat_a}"
+print           "FINAL_LAT_B ${lat_b}"
+print           "FINAL_LAT_C ${lat_c}"
+print           "FINAL_LX $(lx)"
+print           "FINAL_LY $(ly)"
+print           "FINAL_LZ $(lz)"

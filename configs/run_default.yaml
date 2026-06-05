@@ -1,0 +1,119 @@
+# PIBO-ReaxFF run configuration.
+# All knobs from the Colab notebook collected into a single YAML file.
+# Run with:
+#     python run.py --config configs/run_default.yaml
+# Or override individual values from the CLI, e.g.:
+#     python run.py --config configs/run_default.yaml --budget 50 --replicates 1
+
+system:           MoSH
+profile:          demo                  # demo | manuscript
+dft_root:         null                  # null = auto-resolve via default_mosh.json
+
+# ------------------------------------------------------------------
+# Bayesian-optimization loop
+# ------------------------------------------------------------------
+bo:
+  budget:           400                 # total loss evaluations per (optimizer, replicate)
+  replicates:       3                   # independent seeds per optimizer
+  init_lhs_points:  30                  # Latin-hypercube warm-start size (~7.5% of budget)
+  patience:         40                  # 0 disables patience-based early stop
+  burn_in:          80                  # evals before patience kicks in
+  physics_informed: true
+  ablation_physics_off: false           # set true to also run a physics-off ablation pass
+  optimizers:       [pibo]              # subset; null = all registered
+
+# ------------------------------------------------------------------
+# Composite-loss weights
+# ------------------------------------------------------------------
+loss_weights:
+  energy:        1.0
+  forces:        0.0
+  # geometry > 0 enables the equilibrium-geometry anchor in
+  # ReaxFFLoss: cell-relax a 3x3 monolayer per BO call and penalise
+  # |a - 3.183| + |h_S - 1.564| (Cooper 2014 DFT reference). Adds 1
+  # LAMMPS call/eval but drives geometry to the 5 % validation target.
+  geometry:      1.0
+  per_atom_norm: true                 # divide per-frame error by n_atoms → loss in eV/atom
+  # Per-frame category weights (Manuscript Table 1)
+  category_weights:
+    equilibrium:  10.0
+    bond_pes:      5.0
+    angle_pes:     3.0
+    dihedral_pes:  1.0
+    strained:      0.5
+    default:       1.0
+
+# ------------------------------------------------------------------
+# Dataset filtering (physics-grounded)
+# ------------------------------------------------------------------
+dataset:
+  # Drop frames with DFT energy more than this many eV/atom above the
+  # per-category equilibrium minimum. ReaxFF's bond-order formulation
+  # saturates above ~3-5 eV/atom — outliers there cannot physically be
+  # fit and would dominate the squared RMSE. Default 3.0 (standard
+  # ReaxFF training practice).
+  max_dE_per_atom_eV: 3.0
+
+# ------------------------------------------------------------------
+# Staged acquisition (UCB until X% of budget, EI until Y%, PI after)
+# ------------------------------------------------------------------
+acquisition:
+  stage_ucb_until:  0.30
+  stage_ei_until:   0.70
+  ucb_beta_init:    2.0
+  ucb_beta_decay:   0.995
+  ei_xi:            0.01
+  thompson_prob:    0.15
+
+# ------------------------------------------------------------------
+# Physics-constraint penalty (PIBO only)
+# ------------------------------------------------------------------
+physics_constraints:
+  penalty_lambda: 1.0
+
+# ------------------------------------------------------------------
+# Physical-validation gate (PIBO only)
+# Every K BO iterations the current best parameter vector is checked
+# against MoS2_physical_validation.csv via real LAMMPS MD. On failure
+# the worst-category loss weight is boosted and the corresponding
+# parameter-bound subset is shrunk around the current best.
+# ------------------------------------------------------------------
+validation:
+  # Disabled by default for the user's MSMPI 10Sep2025 LAMMPS build,
+  # whose pair_style reaxff emits NaN press (a known build-specific
+  # quirk; harmless for BO single-point evals but fatal for the
+  # validator's stress/NPT comparisons). With the gate failing every
+  # row, BO loss was inflated by the cascading category-weight boosts
+  # from derive_adjustment(); turning it off lets the BO loss reflect
+  # the pure weighted-energy RMSE on the VASP dataset, and the
+  # parameter posterior is shaped by the DFT data alone — which is
+  # exactly what the manuscript framework needs.
+  # Re-enable (and uncomment stress in observables) once running
+  # against a LAMMPS build with finite ReaxFF press (e.g. WSL/Linux
+  # conda-forge serial build).
+  enabled:        false
+  csv_path:       MoS2_physical_validation.csv     # repo-relative
+  tol:            0.05                              # 5%
+  every_k:        50                                # 0 to disable mid-run
+  early_stop:     false                             # stop PIBO once a check passes
+  boost_factor:   2.0
+  shrink_factor:  0.7
+  npt_ps:         2.0                               # NPT prod time per T row
+  supercell_mono: [3, 3]                            # 27 atoms (was 4x4=48)
+  supercell_bulk: [2, 2, 1]                         # 24 atoms (was 3x3x1=54)
+  # observables: ('a',) only on the user's MSMPI 10Sep2025 build, whose
+  # pair_style reaxff emits NaN press (build-specific quirk; harmless
+  # for BO single-point evals, fatal for stress validation). Add 'stress'
+  # back once running against a LAMMPS build with finite ReaxFF press.
+  observables:    [a]                               # subset of a,c,h_S,d_MoS,angle_intra,angle_vert,stress
+  subsample:      default                          # 'default' | null (full CSV) | dict
+
+# ------------------------------------------------------------------
+# Output
+# ------------------------------------------------------------------
+output:
+  results_dir:    results
+  save_csv:       true
+  save_plots:     true
+  plot_dir:       results/figures
+  log_level:      info                              # debug | info | warning | error

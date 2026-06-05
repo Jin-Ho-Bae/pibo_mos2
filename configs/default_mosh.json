@@ -1,0 +1,98 @@
+{
+  "_about": "PIBO-ReaxFF for the H/Mo/S system (Manuscript: Bae et al.). Two profiles are baked into a single config: 'manuscript' reproduces the published settings (50 LHS + 2000 BO iters x 500 replications), 'demo' is a Colab-friendly subset that runs end-to-end in minutes. Switch via optimization.profile.",
+
+  "system": "MoSH",
+  "elements": ["Mo", "S", "H"],
+
+  "dft_root": "vasp_calculations",
+  "dft_root_alternatives": [
+    "vasp_calculation",
+    "../CODE/data/vasp_calculations",
+    "data/vasp_calculations",
+    "../data/vasp_calculations",
+    "${PIBO_DFT_ROOT}"
+  ],
+
+  "blocks": ["bond", "angle", "torsion", "offdiag"],
+
+  "lammps": {
+    "potential_template": "lammps_templates/in.reaxff.tmpl",
+    "ffield_template":    "lammps_templates/ffield.reax.MoSH.NoteS1.template",
+    "ffield_file":        "ffield.reax.MoSH",
+    "units":              "real",
+    "atom_style":         "charge",
+    "qeq_tolerance":      1.0e-6,
+    "qeq_max_iter":       1000,
+    "_pair_style_note":   "auto-detected at runtime; lammps_runner picks reaxff (modern) or reax/c (legacy)"
+  },
+
+  "loss_weights": {
+    "energy":   1.0,
+    "forces":   0.0,
+    "geometry": 0.5,
+    "_about_categories": "Per-frame weights from Manuscript Table 1; consumed by ReaxFFLoss._frame_weights via DFTFrame.category.",
+    "category_weights": {
+      "equilibrium":  10.0,
+      "bond_pes":      5.0,
+      "angle_pes":     3.0,
+      "dihedral_pes":  1.0,
+      "strained":      0.5,
+      "default":       1.0
+    }
+  },
+
+  "optimization": {
+    "profile": "demo",
+
+    "_about_manuscript": "Manuscript settings: 50 LHS init + up to 2000 BO iters per replication, 500 replications per parameter block, patience-based early stopping (50 unimproved evals after 200-iter burn-in).",
+    "manuscript": {
+      "init_lhs_points":     50,
+      "budget":              2000,
+      "replicates":          500,
+      "patience":            50,
+      "burn_in":             200,
+      "physics_informed":    true,
+      "validation_split":    0.2,
+      "online_window_recent":100,
+      "online_window_initial": 50
+    },
+
+    "_about_demo": "Demo settings: ~1-2 orders of magnitude smaller than manuscript so Colab finishes in minutes. Reproduces the same staged-acquisition behavior on a sparse search.",
+    "demo": {
+      "init_lhs_points":      20,
+      "budget":               200,
+      "replicates":            5,
+      "patience":             20,
+      "burn_in":              50,
+      "physics_informed":    true,
+      "validation_split":    0.2,
+      "online_window_recent":100,
+      "online_window_initial": 50
+    }
+  },
+
+  "acquisition": {
+    "_about": "Manuscript 짠'BO with adaptive GPs': stage-conditioned acquisition.",
+    "stage_ucb_until":  0.30,
+    "stage_ei_until":   0.70,
+    "stage_pi_after":   0.70,
+    "ucb_beta_init":     2.0,
+    "ucb_beta_decay":    0.995,
+    "ei_xi":             0.01,
+    "thompson_prob":     0.15
+  },
+
+  "physics_constraints": {
+    "penalty_lambda": 1.0,
+    "enforce_acquisition_constraint": true
+  },
+
+  "gp": {
+    "kernel":           "matern",
+    "nu":               2.5,
+    "ard":              true,
+    "sparse_threshold": 100,
+    "n_inducing":       50,
+    "_about_dim_scaling": "Manuscript: rescale loss by sqrt(np/10), feature-normalize when np > 20, init hyperparameters as functions of np with dimension-scaled jitter."
+  }
+}

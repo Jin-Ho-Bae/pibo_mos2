@@ -1,0 +1,15 @@
+{
+  "_about": "Default acquisition-stage parametric study grid for PIBO.",
+  "_columns": "ucb_until = end of UCB stage (fraction of BO budget); ei_until = end of EI stage; PI runs for the rest.",
+  "_manuscript_default": {"ucb_until": 0.30, "ei_until": 0.70},
+  "_constraint": "0 <= ucb_until <= ei_until <= 1.",
+  "_optional_keys": "Each point may also override ucb_beta_init, ucb_beta_decay, ei_xi, thompson_prob (defaults match the manuscript).",
+
+  "points": [
+    {"ucb_until": 0.10, "ei_until": 0.50},
+    {"ucb_until": 0.20, "ei_until": 0.60},
+    {"ucb_until": 0.30, "ei_until": 0.70},
+    {"ucb_until": 0.40, "ei_until": 0.80},
+    {"ucb_until": 0.50, "ei_until": 0.90}
+  ]
+}

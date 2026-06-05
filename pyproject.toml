@@ -1,0 +1,78 @@
+# PIBO-ReaxFF — Physics-Informed Bayesian Optimization for ReaxFF.
+#
+# PEP 621 packaging. Tested on Python 3.12; should work on 3.11+.
+# LAMMPS is NOT a pip dependency — install it via conda-forge separately:
+#     conda install -c conda-forge lammps
+# and ensure `lmp` (or `lmp.exe`) is on PATH.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pibo-reaxff"
+version = "1.2.0"
+description = "Physics-Informed Bayesian Optimization for ReaxFF parameter calibration with LAMMPS-backed evaluation and MoS2 physical validation."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Bae, Jin-Ho", email = "kr.jinho.bae@gmail.com" },
+]
+keywords = ["ReaxFF", "LAMMPS", "Bayesian optimization", "MoS2", "molecular dynamics"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+# Core runtime deps — latest stable as of 2026-01.
+dependencies = [
+    "numpy>=2.1,<3",
+    "scipy>=1.14",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# GPU optimization path via JAX (CPU build by default; CUDA is OS-specific).
+gpu = [
+    "jax>=0.4.30",
+]
+# Sampling helpers used by parameters.latin_hypercube (NumPy fallback exists).
+sampling = [
+    "pyDOE>=0.3.8",
+]
+# Developer tooling.
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.3",
+    "ipykernel>=6.29",
+]
+
+# No console-script entry: run via `python run.py` (PyCharm-friendly).
+
+[project.urls]
+Repository = "https://github.com/Jin-Ho-Bae/pibo_mos2"
+
+[tool.setuptools]
+packages = ["pibo_reaxff", "pibo_reaxff.optimizers"]
+
+# lammps_templates/ and configs/ are loaded via absolute paths anchored
+# to local_env.repo_root(); no package_data entry needed.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
