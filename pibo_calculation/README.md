@@ -27,12 +27,21 @@ pibo_calculation/
   recalib_staged_bo.py     # ENTRY POINT — staged BO driver
   recalib_combined_all.py  # evaluator library (ReaxFF parse/write, LAMMPS decks, evaluate())
   _lmp_path.py             # locates the LAMMPS executable
-  data/                    # all input data used by the run
-    ffield.reax.MoSH.pibo_biaxial_v9.reax           # warm-start force field
-    MoS2_physical_validation.csv                    # DFT reference (stress, h_S)
-    data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata # LAMMPS structure deck
+  data/                    # input DFT data used by the run
+    MoS2_physical_validation.csv   # DFT reference — full biaxial + uniaxial
+                                   # (x1 zigzag, x2 armchair) stress–strain + h_S
   output/                  # created at run time (results — NOT shipped)
 ```
+
+The `data/` folder contains the DFT reference data (all biaxial and uniaxial
+stress–strain curves). Two run-time inputs are **not** bundled here:
+
+- the **warm-start ReaxFF force field** — provided in the **Supporting
+  Information**; place it at `data/ffield.reax.MoSH.pibo_biaxial_v9.reax`;
+- the **LAMMPS structure deck** (a 10×10 2H-MoS₂ monolayer) — supply your own
+  at `data/data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata`.
+
+Drop both into `data/` to run the driver end-to-end.
 
 ## Requirements
 
@@ -47,6 +56,10 @@ pip install numpy pandas scipy scikit-optimize
 ```
 
 ## Run
+
+First place the two non-bundled inputs into `data/` (warm-start force field
+from the Supporting Information + a 10×10 MoS₂ LAMMPS structure deck — see
+*Layout*), then:
 
 ```bash
 cd pibo_calculation

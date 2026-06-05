@@ -17,10 +17,14 @@ evaluated by LAMMPS through ``recalib_combined_all.evaluate`` (the evaluator
 library in this bundle). Every N_POST_DUMP trials the GP posterior is
 snapshotted on an LHS grid for the posterior-distribution figures.
 
-Inputs  (all under ``data/``):
-  - ffield.reax.MoSH.pibo_biaxial_v9.reax           : warm-start force field
-  - MoS2_physical_validation.csv                    : DFT reference (stress, h_S)
-  - data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata : LAMMPS structure deck
+Inputs:
+  - data/MoS2_physical_validation.csv : DFT reference data — the FULL biaxial
+        and uniaxial (x1 zigzag, x2 armchair) stress-strain curves + h_S.
+  Not bundled here (place into data/ to run end-to-end):
+  - ffield.reax.MoSH.pibo_biaxial_v9.reax : warm-start force field — provided
+        in the Supporting Information (the ReaxFF parameter set is documented
+        there, so it is not duplicated in this folder).
+  - data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata : 10x10 2H-MoS2 LAMMPS deck.
 
 Outputs (written under ``output/`` at run time; NOT shipped — the results are
 reported as manuscript figures):
