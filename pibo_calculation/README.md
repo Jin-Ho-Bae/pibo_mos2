@@ -27,14 +27,40 @@ pibo_calculation/
   recalib_staged_bo.py     # ENTRY POINT — staged BO driver
   recalib_combined_all.py  # evaluator library (ReaxFF parse/write, LAMMPS decks, evaluate())
   _lmp_path.py             # locates the LAMMPS executable
-  data/                    # input DFT data used by the run
-    MoS2_physical_validation.csv   # DFT reference — full biaxial + uniaxial
-                                   # (x1 zigzag, x2 armchair) stress–strain + h_S
+  data/                    # all DFT reference data used by the optimization
+    MoS2_physical_validation.csv   # mechanical reference — full biaxial +
+                                   # uniaxial (x1 zigzag, x2 armchair)
+                                   # stress–strain + h_S
+    dft_reference/                 # DFT PES scans (VASP CONTCAR + OUTCAR)
+      bond/                        #   Mo–S bond-stretch scan (r in 0.001 Å)
+      angle/                       #   S–Mo–S angle-bend scan (deg)
+      torsion/                     #   dihedral scan (deg)
+      nonbonded/                   #   non-bonded / vdW scan
   output/                  # created at run time (results — NOT shipped)
 ```
 
-The `data/` folder contains the DFT reference data (all biaxial and uniaxial
-stress–strain curves). Two run-time inputs are **not** bundled here:
+## DFT reference data
+
+Two complementary DFT reference sets drive the PIBO ReaxFF optimization, and
+both are organized under `data/`:
+
+1. **Potential-energy-surface scans** — `data/dft_reference/{bond, angle,
+   torsion, nonbonded}/`. Each scan point is a VASP `CONTCAR` (relaxed
+   geometry) + `OUTCAR` (energy / forces). These bond / angle / torsion /
+   non-bonded references are the primary targets for the **core ReaxFF
+   parameterization** (the fit that produces the base parameters underlying
+   the warm-start force field).
+2. **Mechanical response** — `data/MoS2_physical_validation.csv`: the full
+   biaxial and uniaxial (zigzag / armchair) stress–strain curves + h_S.
+   These are the targets of the **staged-BO recalibration** in
+   `recalib_staged_bo.py` (this folder's entry point).
+
+> Note: `recalib_staged_bo.py` reads the mechanical CSV directly. The
+> PES scans in `dft_reference/` are the reference for the core ReaxFF fit
+> (and are included here so the complete DFT reference behind the
+> optimization is documented in one place).
+
+Two run-time inputs are **not** bundled here:
 
 - the **warm-start ReaxFF force field** — provided in the **Supporting
   Information**; place it at `data/ffield.reax.MoSH.pibo_biaxial_v9.reax`;

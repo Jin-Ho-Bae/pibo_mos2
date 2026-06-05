@@ -18,8 +18,14 @@ library in this bundle). Every N_POST_DUMP trials the GP posterior is
 snapshotted on an LHS grid for the posterior-distribution figures.
 
 Inputs:
-  - data/MoS2_physical_validation.csv : DFT reference data — the FULL biaxial
-        and uniaxial (x1 zigzag, x2 armchair) stress-strain curves + h_S.
+  - data/MoS2_physical_validation.csv : mechanical DFT reference read by THIS
+        driver — the FULL biaxial and uniaxial (x1 zigzag, x2 armchair)
+        stress-strain curves + h_S.
+  - data/dft_reference/{bond,angle,torsion,nonbonded}/ : the DFT potential-
+        energy-surface scans (VASP CONTCAR + OUTCAR). These are the reference
+        for the core ReaxFF parameterization (not read by this staged-BO
+        driver); included so the full DFT reference behind the optimization is
+        documented in one place.
   Not bundled here (place into data/ to run end-to-end):
   - ffield.reax.MoSH.pibo_biaxial_v9.reax : warm-start force field — provided
         in the Supporting Information (the ReaxFF parameter set is documented
