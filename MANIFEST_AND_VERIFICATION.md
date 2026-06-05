@@ -107,3 +107,60 @@ git push -u origin main
 
 Review `git status` / `git log -1 --stat` first. To drop any gated
 artifact before publishing, `git rm --cached <path>` and re-commit.
+
+---
+
+## 5. Update — Figure_data + recalibration drivers added
+
+Subsequent to the initial release, the following were added (commits after
+`828be16`):
+
+### Figure_data
+- `Figure_data/` — 12 `.xlsx` files backing manuscript Figures 3–8.
+
+### Biaxial / property-targeted recalibration (reverses the earlier exclusion)
+At the author's request, the recalibration drivers that produced the
+manuscript's force fields are now included so the *resulting ReaxFF
+parameters* can be regenerated:
+
+- **Scripts (15):** `pibo_biaxial_recalibrate.py`, `…_expanded.py`,
+  `…_v3 … …_v13.py`, `recalib_staged_bo.py`, `recalib_combined_all.py`.
+- **Support data:** `MoS2_physical_validation.csv`,
+  `lammps_templates/data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata`,
+  `results/reviewer_response/v9_validation/data.mos2_3x3_v9_validation.lammpsdata`
+  (warm-start `*.reax` chain already shipped in `results/ffield/`).
+- **Packaging:** added `scikit-learn` to core deps; new extras
+  `[hmc]` (numpyro, arviz) and `[recalib]` (scikit-optimize).
+
+### Code change: LAMMPS path parameterized
+The 15 scripts previously hardcoded a per-machine `lmp.exe` path (two
+literals, for users `CAN` and `JINHOBAE`). All now resolve LAMMPS through
+the new `scripts/_lmp_path.py::find_lmp()` — checks `$PIBO_LMP`, then PATH,
+else raises. No machine-specific path remains.
+
+### Static verification (no execution — no Python/LAMMPS on this host)
+- All 15 scripts now import `find_lmp`; **no** `lmp.exe`/user-path literal
+  remains in any recalib script (only in `local_env.py`'s legitimate
+  dynamic discovery and the helper's docstring). ✔
+- `recalib_staged_bo.py` imports 19 names from `recalib_combined_all.py`
+  (`grab, read_lines, write_lines, parse_offsets, build_spec, write_ffield,
+  setup_wd, run_lmp, biax_init_deck, biax_strain_deck, uni_deck,
+  defect_deck, saddle_deck, measure_h_S, parse_data_atoms,
+  write_data_with_atoms, parse_atom_record, rel_err, evaluate`) — **all 19
+  are defined** in that module. ✔
+- All warm-start `*.reax`, the two `.lammpsdata` decks, and the DFT CSV the
+  drivers reference are present in the repo. ✔
+- **Not executed.** These drivers require Python ≥ 3.11 + scikit-optimize/
+  scipy + a ReaxFF LAMMPS. `recalib_combined_all.py` resolves LAMMPS at
+  *import* time (module-level `LMP = find_lmp()`), so importing it — and
+  thus running `recalib_staged_bo.py` — requires LAMMPS present even to
+  start. This is intended for LAMMPS-backed drivers and does **not** affect
+  the UQ pipeline (which no longer imports these modules).
+
+### Note carried over from the dependency audit
+The recalibration scripts label top-K/softmax-over-trials ensembles as the
+"GP posterior"/"Bayesian UQ" in their docstrings. That is the
+optimizer-replicate approximation the reviewer flagged — it is **not** the
+HMC parameter posterior (`σ_post`) produced by `scripts/phase04_hmc.py`.
+The two layers are separate: these scripts are the *calibration drivers*;
+the `src/` + `phase0*` pipeline is the *uncertainty-quantification* layer.

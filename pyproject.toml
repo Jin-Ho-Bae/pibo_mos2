@@ -38,6 +38,7 @@ dependencies = [
     "scipy>=1.14",
     "pandas>=2.2",
     "matplotlib>=3.9",
+    "scikit-learn>=1.4",
     "pyyaml>=6.0",
     "tqdm>=4.66",
 ]
@@ -50,6 +51,16 @@ gpu = [
 # Sampling helpers used by parameters.latin_hypercube (NumPy fallback exists).
 sampling = [
     "pyDOE>=0.3.8",
+]
+# Hamiltonian Monte Carlo posterior — scripts/phase04_hmc.py (UQ pipeline).
+hmc = [
+    "numpyro>=0.13",
+    "arviz>=0.17",
+]
+# Biaxial / staged ReaxFF recalibration drivers — scripts/pibo_biaxial_recalib_*
+# and scripts/recalib_*. Also require a ReaxFF-enabled LAMMPS (see PIBO_LMP).
+recalib = [
+    "scikit-optimize>=0.9",
 ]
 # Developer tooling.
 dev = [
