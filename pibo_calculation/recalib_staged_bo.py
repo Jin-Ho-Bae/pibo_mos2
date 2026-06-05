@@ -1,47 +1,18 @@
-"""PIBO recalibration of MoS2 ReaxFF — staged Bayesian optimization.
+"""PIBO recalibration of MoS2 ReaxFF (two stages, one driver).
 
-This is the calibration driver used for the most recent PIBO run and the
-entry point of this self-contained ``pibo_calculation/`` bundle. Its outputs
-are the values reported in the manuscript's
-``results/reviewer_response/recalib_staged_bo/`` figures.
+Stage 1  PES fit   : Bayesian optimization of the ReaxFF parameters against the
+                     bond / angle / torsion / non-bonded DFT scans in
+                     data/dft_reference/, via the optimizer's PES error
+                     function (optimizer_error).
+Stage 2  staged BO : LHS -> EI+Thompson -> LCB over the biaxial / uniaxial
+                     stress-strain (+ V_S, S-diffusion) targets in
+                     data/MoS2_physical_validation.csv, evaluated with LAMMPS.
 
-Acquisition schedule (staged):
-    * Stage 1 (trials 1   .. STAGE1_END=15):  LHS exploration (cold start)
-    * Stage 2 (trials 16  .. STAGE2_END=60):  EI, with p = P_THOMPSON
-                                              Thompson-sampling injection
-    * Stage 3 (trials 61  .. budget):         LCB exploitation
+Run:
+    python recalib_staged_bo.py --budget 100 --pes-budget 100 --seed 42
 
-The objective is the worst-of-five relative error vs DFT across biaxial /
-uniaxial stress, V_S vacancy-formation energy, and the S-diffusion barrier,
-evaluated by LAMMPS through ``recalib_combined_all.evaluate`` (the evaluator
-library in this bundle). Every N_POST_DUMP trials the GP posterior is
-snapshotted on an LHS grid for the posterior-distribution figures.
-
-Inputs:
-  - data/MoS2_physical_validation.csv : mechanical DFT reference read by THIS
-        driver — the FULL biaxial and uniaxial (x1 zigzag, x2 armchair)
-        stress-strain curves + h_S.
-  - data/dft_reference/{bond,angle,torsion,nonbonded}/ : the DFT potential-
-        energy-surface scans (VASP CONTCAR + OUTCAR). These are the reference
-        for the core ReaxFF parameterization (not read by this staged-BO
-        driver); included so the full DFT reference behind the optimization is
-        documented in one place.
-  Not bundled here (place into data/ to run end-to-end):
-  - ffield.reax.MoSH.pibo_biaxial_v9.reax : warm-start force field — provided
-        in the Supporting Information (the ReaxFF parameter set is documented
-        there, so it is not duplicated in this folder).
-  - data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata : 10x10 2H-MoS2 LAMMPS deck.
-
-Outputs (written under ``output/`` at run time; NOT shipped — the results are
-reported as manuscript figures):
-  - ffield.reax.MoSH.staged_bo.reax  : recalibrated force field (best)
-  - RECALIB_LOG.csv, BEST_RESULT.txt, posterior_snapshots/
-
-Requirements: Python >=3.11, numpy, pandas, scipy, scikit-optimize, and a
-ReaxFF-enabled LAMMPS (set $PIBO_LMP or put `lmp` on PATH).
-
-Usage:
-    python recalib_staged_bo.py --budget 100 --seed 42
+Needs Python >=3.11 (numpy, pandas, scipy, scikit-optimize, scikit-learn) and
+a ReaxFF-enabled LAMMPS (set $PIBO_LMP or put `lmp` on PATH).
 """
 from __future__ import annotations
 import argparse, csv, json, math, re, shutil, subprocess, sys, textwrap, time
@@ -49,19 +20,25 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# Self-contained bundle layout: code at the bundle root, inputs in data/,
-# results in output/ (created on run; not shipped).
-# Warm-start is the v9 force field — a much closer initial point for the
-# staged BO than the original PIBO-calibrated ffield.
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parent
 DATA = HERE / "data"
-SRC_FFIELD = DATA / "ffield.reax.MoSH.pibo_biaxial_v9.reax"   # warm-start (input)
-DFT_CSV    = DATA / "MoS2_physical_validation.csv"            # DFT reference (input)
-from _lmp_path import find_lmp as _find_lmp  # parameterized LAMMPS discovery
-LMP        = _find_lmp()
-DATA10x10  = DATA / "data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata"  # structure deck (input)
-OUT_DIR    = HERE / "output"                                 # results (not shipped)
-DST_FFIELD = OUT_DIR / "ffield.reax.MoSH.staged_bo.reax"      # recalibrated ffield (output)
+OUT_DIR = HERE / "output"
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(REPO))
+
+DFT_CSV       = DATA / "MoS2_physical_validation.csv"
+PES_DATA      = DATA / "dft_reference"
+OPTIMIZER_BOUNDS   = DATA / "optimizer_variable_bounds.txt"
+OPTIMIZER_TEMPLATE = REPO / "lammps_templates" / "ffield.reax.MoSH.template"
+WARMSTART     = DATA / "ffield.reax.MoSH.pibo_biaxial_v9.reax"  # optional (Supporting Information)
+DATA10x10     = DATA / "data.mos2_2H_monolayer_10x10_ryanDFT.lammpsdata"
+
+from _lmp_path import find_lmp as _find_lmp
+LMP = _find_lmp()
+
+PES_FFIELD = OUT_DIR / "ffield.reax.MoSH.pes_fit.reax"
+DST_FFIELD = OUT_DIR / "ffield.reax.MoSH.staged_bo.reax"
 LOG_PATH   = OUT_DIR / "RECALIB_LOG.csv"
 BEST_PATH  = OUT_DIR / "BEST_RESULT.txt"
 POST_DIR   = OUT_DIR / "posterior_snapshots"
@@ -101,6 +78,38 @@ from recalib_combined_all import (
     saddle_deck, measure_h_S, parse_data_atoms, write_data_with_atoms,
     parse_atom_record, rel_err, evaluate,
 )
+
+
+def pes_fit(budget, seed):
+    """Stage 1: BO of the ReaxFF parameters vs the bond/angle/torsion/non-bonded
+    DFT scans (optimizer PES energy error). Writes the fitted ffield to
+    PES_FFIELD."""
+    from skopt import Optimizer
+    from skopt.space import Real
+    import optimizer_error, optimizer_io
+    bounds = optimizer_io.read_variable_bounds(str(OPTIMIZER_BOUNDS))
+    template = optimizer_io.read_forcefield_template(str(OPTIMIZER_TEMPLATE))
+    names = list(bounds)
+    space = [Real(float(bounds[n][0]), float(bounds[n][1])) for n in names]
+    bo = Optimizer(dimensions=space, base_estimator="GP", acq_func="EI",
+                   n_initial_points=max(10, len(names)),
+                   initial_point_generator="lhs", random_state=seed)
+    best = (float("inf"), None)
+    for t in range(1, budget + 1):
+        x = bo.ask()
+        e_err, f_err, geom_err = optimizer_error.error_function(
+            dict(zip(names, x)), template_string=template,
+            dataset_root=str(PES_DATA))
+        loss = e_err if e_err == e_err else 1e9
+        bo.tell(x, float(loss))
+        if loss < best[0]:
+            best = (loss, list(x))
+            optimizer_io.generate_forcefield(
+                template, dict(zip(names, best[1])), FFtype="REAXFF",
+                outfile=str(PES_FFIELD), MD="LAMMPS")
+        print(f"[pes {t:4d}] E_err={e_err:.4f} eV  best={best[0]:.4f}", flush=True)
+    print(f"[pes] fitted ffield -> {PES_FFIELD.name}  (E_err={best[0]:.4f} eV)", flush=True)
+    return PES_FFIELD
 
 
 def thompson_sample_candidate(bo, n_candidates=512, rng=None):
@@ -176,22 +185,28 @@ def snapshot_posterior(bo, names, lows, highs, trial, out_dir, n_grid=200):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--budget", type=int, default=100)
+    ap.add_argument("--pes-budget", type=int, default=100)
     ap.add_argument("--seed",   type=int, default=42)
     args = ap.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     POST_DIR.mkdir(parents=True, exist_ok=True)
-    src = read_lines(SRC_FFIELD)
+
+    # Stage 1: PES fit against the bond/angle/torsion/non-bonded DFT scans.
+    pes_ffield = pes_fit(args.pes_budget, args.seed)
+
+    # Stage 2 warm-start: the biaxial-tuned v9 (Supporting Information) if
+    # present in data/, otherwise the Stage-1 PES fit.
+    src_path = WARMSTART if WARMSTART.exists() else pes_ffield
+    src = read_lines(src_path)
     off = parse_offsets(src)
     spec = build_spec(src, off)
     lows  = np.array([s["lo"] for s in spec])
     highs = np.array([s["hi"] for s in spec])
     x0    = np.array([s["init"] for s in spec])
     names = [s["name"] for s in spec]
-    print(f"[setup] src={SRC_FFIELD.name}, params={len(spec)}, budget={args.budget}", flush=True)
-    print(f"[setup] target=ALL 5 priority metrics <= {TARGET_PCT}%", flush=True)
+    print(f"[setup] stage2 warm-start={src_path.name}, params={len(spec)}, budget={args.budget}", flush=True)
     print(f"[setup] staged BO: LHS<={STAGE1_END}, EI/Thompson<={STAGE2_END}, LCB after", flush=True)
-    print(f"[setup] Thompson probability = {P_THOMPSON}", flush=True)
 
     SUB = [0.05, 0.10, 0.15, 0.20, 0.25]
     dft = pd.read_csv(DFT_CSV)

@@ -1,0 +1,50 @@
+# Optimizer variable bounds for the H/Mo/S ReaxFF system
+# Format: name  lo  hi  (one per line)
+# Source: pibo_reaxff.parameters.REAXFF_PARAMETERS (46 parameters)
+#
+De_sigma_MoMo   37.410300   61.432300
+p_be1_MoMo      0.491100   1.051100
+p_bo5_MoMo     -0.378800  -0.181800
+p_bo6_MoMo      13.195000   17.870000
+p_ovun1_MoMo    0.213000   0.303000
+De_sigma_MoS    58.445800   69.347800
+De_pi_MoS       28.399600   37.056600
+De_pipi_MoS     125.635000   155.684000
+p_be1_MoS       0.505000   1.330000
+p_bo5_MoS      -0.318000  -0.099000
+p_bo6_MoS       15.501600   24.669600
+p_ovun1_MoS     0.098600   0.267600
+De_sigma_SS     74.705600   95.007600
+De_pi_SS        59.508300   83.579300
+p_be1_SS       -1.230900  -0.651900
+p_bo5_SS       -0.686500  -0.165500
+p_bo6_SS        17.132300   18.935700
+p_ovun1_SS      0.082800   0.122800
+Dij_MoS         0.028800   0.206800
+RvdW_MoS        1.679200   1.981200
+Alfa_MoS        8.997900   10.373900
+ro_sigma_MoS    2.241050   2.476950
+ro_pi_MoS       1.411100   1.920100
+Thetao_SSS      77.765700   93.937700
+p_val1_SSS      14.721295   16.270905
+p_val2_SSS      2.494100   4.623100
+p_val7_SSS      1.061000   1.675000
+Thetao_MoMoS    34.623900   48.868900
+p_val1_MoMoS    39.150300   45.016300
+p_val2_MoMoS    7.559055   8.354745
+p_val7_MoMoS    2.154400   2.576400
+Thetao_MoSMo    27.584400   33.623400
+p_val1_MoSMo    11.541600   30.125600
+p_val2_MoSMo    7.172600   8.551600
+p_val7_MoSMo    3.479945   3.846255
+Thetao_SMoS     62.152800   76.140800
+p_val1_SMoS     47.960800   53.058800
+p_val2_SMoS     0.387700   0.861700
+p_val7_SMoS     0.931000   1.046000
+V1_SSSS         1.798100   3.468100
+V2_SSSS         58.462700   92.235700
+V3_SSSS        -0.010300   0.029700
+r_hb_SHS        1.235400   1.676400
+p_hb1_SHS      -2.113860  -1.912540
+p_hb2_SHS       1.565400   1.952400
+p_hb3_SHS       2.521800   3.318800
